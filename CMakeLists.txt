@@ -2,9 +2,16 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
 PROJECT(msg)
 
+ADD_DEFINITIONS(-pedantic -std=gnu99 -Wall -Werror)
+
 SET(PROJECT_SOURCES
 include/msg.h
 src/main.c
+src/msg.c
 )
+
+INCLUDE_DIRECTORIES(include)
+
+LINK_LIBRARIES(pthread)
 
 ADD_EXECUTABLE(msg ${PROJECT_SOURCES})
