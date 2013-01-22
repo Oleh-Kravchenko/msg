@@ -24,6 +24,12 @@
 
 /*------------------------------------------------------------------------*/
 
+#ifndef ARRAY_COUNT
+#	define ARRAY_COUNT(x) (sizeof(x) / sizeof(x[0]))
+#endif /* ARRAY_COUNT */
+
+/*------------------------------------------------------------------------*/
+
 typedef struct msg {
 	size_t len;
 
@@ -50,6 +56,17 @@ typedef struct msg_queue {
 
 /*------------------------------------------------------------------------*/
 
+typedef enum msg_queue_err {
+	MSG_ERR_NONE = 0,
+	MSG_ERR_NO_MEMORY,
+	MSG_ERR_MUTEX_FAILED,
+	MSG_ERR_INVALID_ARG,
+	MSG_ERR_QUEUE_IS_FULL,
+	MSG_ERR_QUEUE_IS_EMPTY,
+} msg_queue_err_t;
+
+/*------------------------------------------------------------------------*/
+
 msg_queue_t* msg_queue_create(size_t max_size);
 
 void msg_queue_destroy(msg_queue_t*);
@@ -57,6 +74,10 @@ void msg_queue_destroy(msg_queue_t*);
 int msg_queue_put(msg_queue_t* q, msg_t* m);
 
 msg_t* msg_queue_fetch(msg_queue_t* q);
+
+msg_queue_err_t msg_queue_errno(void);
+
+const char* msg_queue_errno2str(msg_queue_err_t err);
 
 msg_t* msg_create(const void*, size_t len);
 

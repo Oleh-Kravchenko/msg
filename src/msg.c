@@ -25,19 +25,33 @@
 
 /*------------------------------------------------------------------------*/
 
+__thread msg_queue_err_t msg_queue_err = MSG_ERR_NONE;
+
+/*------------------------------------------------------------------------*/
+
 msg_queue_t* msg_queue_create(size_t max_size)
 {
 	msg_queue_t* res;
 
-	if(!(res = malloc(sizeof(*res))))
+	if(!(res = malloc(sizeof(*res)))) {
+		msg_queue_err = MSG_ERR_NO_MEMORY;
+
 		return(NULL);
+	}
 
 	res->max_size = max_size;
 	res->size = 0;
 	res->first = NULL;
 	res->last = NULL;
 
-	pthread_mutex_init(&res->mutex, NULL);
+	msg_queue_err = MSG_ERR_NONE;
+
+	if(pthread_mutex_init(&res->mutex, NULL)) {
+		msg_queue_err = MSG_ERR_MUTEX_FAILED;
+
+		free(res);
+		res = NULL;
+	}
 
 	return(res);
 }
@@ -49,8 +63,11 @@ void msg_queue_destroy(msg_queue_t* q)
 	msg_t* m;
 	msg_t* n;
 
-	if(!q)
+	if(!q) {
+		msg_queue_err = MSG_ERR_INVALID_ARG;
+
 		return;
+	}
 
 	m = q->first;
 
@@ -64,6 +81,8 @@ void msg_queue_destroy(msg_queue_t* q)
 	pthread_mutex_destroy(&q->mutex);
 
 	free(q);
+
+	msg_queue_err = MSG_ERR_NONE;
 }
 
 /*------------------------------------------------------------------------*/
@@ -74,8 +93,11 @@ int msg_queue_put(msg_queue_t* q, msg_t* m)
 
 	pthread_mutex_lock(&q->mutex);
 
-	if(q->size >= q->max_size)
+	if(q->size >= q->max_size) {
+		msg_queue_err = MSG_ERR_QUEUE_IS_FULL;
+
 		goto exit;
+	}
 
 	m->prev = NULL;
 	m->next = q->first;
@@ -92,6 +114,8 @@ int msg_queue_put(msg_queue_t* q, msg_t* m)
 
 	res = 0;
 
+	msg_queue_err = MSG_ERR_NONE;
+
 exit:
 	pthread_mutex_unlock(&q->mutex);
 
@@ -106,8 +130,11 @@ msg_t* msg_queue_fetch(msg_queue_t* q)
 
 	pthread_mutex_lock(&q->mutex);
 
-	if(!q->last)
+	if(!q->last) {
+		msg_queue_err = MSG_ERR_QUEUE_IS_EMPTY;
+
 		goto exit;
+	}
 
 	res = q->last;
 
@@ -120,10 +147,38 @@ msg_t* msg_queue_fetch(msg_queue_t* q)
 	else
 		q->first = NULL;
 
+	msg_queue_err = MSG_ERR_NONE;
+
 exit:
 	pthread_mutex_unlock(&q->mutex);
 
 	return(res);
+}
+
+/*------------------------------------------------------------------------*/
+
+msg_queue_err_t msg_queue_errno(void)
+{
+	return(msg_queue_err);
+}
+
+/*------------------------------------------------------------------------*/
+
+const char* msg_queue_errno2str(msg_queue_err_t err)
+{
+	static const char* msg_queue_errstr[] = {
+		"MSG_ERR_NONE",
+		"MSG_ERR_NO_MEMORY",
+		"MSG_ERR_MUTEX_FAILED",
+		"MSG_ERR_INVALID_ARG",
+		"MSG_ERR_QUEUE_IS_FULL",
+		"MSG_ERR_QUEUE_IS_EMPTY",
+	};
+
+	if(err >= 0 && err < ARRAY_COUNT(msg_queue_errstr))
+		return(msg_queue_errstr[err]);
+
+	return(NULL);
 }
 
 /*------------------------------------------------------------------------*/

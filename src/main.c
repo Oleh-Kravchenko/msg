@@ -28,12 +28,6 @@
 
 /*------------------------------------------------------------------------*/
 
-#ifndef ARRAY_COUNT
-#	define ARRAY_COUNT(x) (sizeof(x) / sizeof(x[0]))
-#endif /* ARRAY_COUNT */
-
-/*------------------------------------------------------------------------*/
-
 static int terminate = 0;
 
 /*------------------------------------------------------------------------*/
@@ -81,7 +75,7 @@ void* put_thread(void* prm)
 	msg_t* m;
 
 	while(!terminate) {
-		usleep(1000);
+		sleep(2);
 
 		/* getting random name */
 		name = names[rand() % ARRAY_COUNT(names)];
@@ -90,7 +84,7 @@ void* put_thread(void* prm)
 			continue;
 
 		if(msg_queue_put(q, m)) {
-			puts("Dropped");
+			printf("msg_queue_errno() = %s\n", msg_queue_errno2str(msg_queue_errno()));
 			msg_free(m);
 		}
 	}
@@ -107,8 +101,12 @@ void* fetch_thread(void* prm)
 	msg_t* m;
 
 	while(!terminate) {
-		if(!(m = msg_queue_fetch(q)))
+		sleep(1);
+
+		if(!(m = msg_queue_fetch(q))) {
+			printf("msg_queue_errno() = %s\n", msg_queue_errno2str(msg_queue_errno()));
 			continue;
+		}
 
 		/* safety copying string */
 		strncpy(name, m->payload, sizeof(name) - 1);
@@ -117,8 +115,6 @@ void* fetch_thread(void* prm)
 		puts(name);
 
 		msg_free(m);
-
-		sleep(1);
 	}
 
 	return(NULL);
@@ -139,7 +135,11 @@ int main(void)
 
 	srand(time(NULL));
 
-	q = msg_queue_create(5);
+	if(!(q = msg_queue_create(5))) {
+		printf("msg_queue_errno() = %s\n", msg_queue_errno2str(msg_queue_errno()));
+
+		return(1);
+	}
 
 	for(i = 0; i < ARRAY_COUNT(t_put); ++ i) {
 		if(pthread_create(&t_put[i], NULL, put_thread, q)) {
@@ -149,7 +149,7 @@ int main(void)
 	}
 
 	if(!pthread_create(&t_fetch, NULL, fetch_thread, q)) {
-		sleep(5);
+		sleep(10);
 		terminate = 1;
 		pthread_join(t_fetch, &t_ret);
 	}
