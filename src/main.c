@@ -75,7 +75,7 @@ void* put_thread(void* prm)
 	msg_t* m;
 
 	while(!terminate) {
-		sleep(2);
+		sleep(1);
 
 		/* getting random name */
 		name = names[rand() % ARRAY_COUNT(names)];
@@ -86,6 +86,7 @@ void* put_thread(void* prm)
 		if(msg_queue_put(q, m)) {
 			printf("msg_queue_errno() = %s\n", msg_queue_errno2str(msg_queue_errno()));
 			msg_free(m);
+			sleep(10);
 		}
 	}
 
@@ -103,7 +104,7 @@ void* fetch_thread(void* prm)
 	while(!terminate) {
 		sleep(1);
 
-		if(!(m = msg_queue_fetch(q))) {
+		if(!(m = msg_queue_fetch_wait(q, 1))) {
 			printf("msg_queue_errno() = %s\n", msg_queue_errno2str(msg_queue_errno()));
 			continue;
 		}
@@ -135,7 +136,7 @@ int main(void)
 
 	srand(time(NULL));
 
-	if(!(q = msg_queue_create(5))) {
+	if(!(q = msg_queue_create(2))) {
 		printf("msg_queue_errno() = %s\n", msg_queue_errno2str(msg_queue_errno()));
 
 		return(1);
@@ -149,7 +150,7 @@ int main(void)
 	}
 
 	if(!pthread_create(&t_fetch, NULL, fetch_thread, q)) {
-		sleep(10);
+		sleep(15);
 		terminate = 1;
 		pthread_join(t_fetch, &t_ret);
 	}

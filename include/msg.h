@@ -52,6 +52,10 @@ typedef struct msg_queue {
 	size_t max_size;
 
 	pthread_mutex_t mutex;
+
+	pthread_cond_t cond;
+
+	pthread_mutex_t cond_mutex;
 } msg_queue_t;
 
 /*------------------------------------------------------------------------*/
@@ -63,6 +67,7 @@ typedef enum msg_queue_err {
 	MSG_ERR_INVALID_ARG,
 	MSG_ERR_QUEUE_IS_FULL,
 	MSG_ERR_QUEUE_IS_EMPTY,
+	MSG_ERR_TIMEOUT,
 } msg_queue_err_t;
 
 /*------------------------------------------------------------------------*/
@@ -74,6 +79,8 @@ void msg_queue_destroy(msg_queue_t*);
 int msg_queue_put(msg_queue_t* q, msg_t* m);
 
 msg_t* msg_queue_fetch(msg_queue_t* q);
+
+msg_t* msg_queue_fetch_wait(msg_queue_t* q, int sec);
 
 msg_queue_err_t msg_queue_errno(void);
 

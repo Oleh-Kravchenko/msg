@@ -46,12 +46,11 @@ msg_queue_t* msg_queue_create(size_t max_size)
 
 	msg_queue_err = MSG_ERR_NONE;
 
-	if(pthread_mutex_init(&res->mutex, NULL)) {
-		msg_queue_err = MSG_ERR_MUTEX_FAILED;
+	pthread_mutex_init(&res->mutex, NULL);
 
-		free(res);
-		res = NULL;
-	}
+	pthread_mutex_init(&res->cond_mutex, NULL);
+
+	pthread_cond_init(&res->cond, NULL);
 
 	return(res);
 }
@@ -79,6 +78,10 @@ void msg_queue_destroy(msg_queue_t* q)
 	}
 
 	pthread_mutex_destroy(&q->mutex);
+
+	pthread_mutex_destroy(&q->cond_mutex);
+
+	pthread_cond_destroy(&q->cond);
 
 	free(q);
 
@@ -116,6 +119,10 @@ int msg_queue_put(msg_queue_t* q, msg_t* m)
 
 	msg_queue_err = MSG_ERR_NONE;
 
+	pthread_mutex_lock(&q->cond_mutex);
+	pthread_cond_signal(&q->cond);
+	pthread_mutex_unlock(&q->cond_mutex);
+
 exit:
 	pthread_mutex_unlock(&q->mutex);
 
@@ -124,16 +131,14 @@ exit:
 
 /*------------------------------------------------------------------------*/
 
-msg_t* msg_queue_fetch(msg_queue_t* q)
+static msg_t* msg_queue_fetch_internal(msg_queue_t* q)
 {
 	msg_t* res = NULL;
-
-	pthread_mutex_lock(&q->mutex);
 
 	if(!q->last) {
 		msg_queue_err = MSG_ERR_QUEUE_IS_EMPTY;
 
-		goto exit;
+		return(res);
 	}
 
 	res = q->last;
@@ -149,8 +154,44 @@ msg_t* msg_queue_fetch(msg_queue_t* q)
 
 	msg_queue_err = MSG_ERR_NONE;
 
-exit:
+	return(res);
+}
+
+/*------------------------------------------------------------------------*/
+
+msg_t* msg_queue_fetch(msg_queue_t* q)
+{
+	msg_t* res = NULL;
+
+	pthread_mutex_lock(&q->mutex);
+	res = msg_queue_fetch_internal(q);
 	pthread_mutex_unlock(&q->mutex);
+
+	return(res);
+}
+
+/*------------------------------------------------------------------------*/
+
+msg_t* msg_queue_fetch_wait(msg_queue_t* q, int sec)
+{
+	struct timespec timeout;
+	int res_cond;
+	msg_t* res;
+
+	if((res = msg_queue_fetch(q)))
+		return(res);
+
+	timeout.tv_sec = time(NULL) + sec;
+	timeout.tv_nsec = 0;
+
+	pthread_mutex_lock(&q->cond_mutex);
+	res_cond = pthread_cond_timedwait(&q->cond, &q->cond_mutex, &timeout);
+	pthread_mutex_unlock(&q->cond_mutex);
+
+	if(!res_cond)
+		return(msg_queue_fetch(q));
+
+	msg_queue_err = MSG_ERR_TIMEOUT;
 
 	return(res);
 }
@@ -173,6 +214,7 @@ const char* msg_queue_errno2str(msg_queue_err_t err)
 		"MSG_ERR_INVALID_ARG",
 		"MSG_ERR_QUEUE_IS_FULL",
 		"MSG_ERR_QUEUE_IS_EMPTY",
+		"MSG_ERR_TIMEOUT",
 	};
 
 	if(err >= 0 && err < ARRAY_COUNT(msg_queue_errstr))
